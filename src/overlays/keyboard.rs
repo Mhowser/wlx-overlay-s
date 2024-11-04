@@ -15,7 +15,7 @@ use crate::{
         color_parse, KeyCapType,
     },
     hid::{
-        get_key_type, KeyModifier, KeyType, VirtualKey, XkbKeymap, ALT, CTRL, KEYS_TO_MODS, META,
+        get_key_type, keys_to_mods, KeyModifier, KeyType, VirtualKey, XkbKeymap, ALT, CTRL, META,
         NUM_LOCK, SHIFT, SUPER,
     },
     state::{AppState, KeyboardFocus},
@@ -147,9 +147,9 @@ where
                         }
                     }
 
-                    if let Some(mods) = KEYS_TO_MODS.get(vk) {
+                    if let Some(mods) = keys_to_mods(vk) {
                         maybe_state = Some(KeyButtonData::Modifier {
-                            modifier: *mods,
+                            modifier: mods,
                             sticky: false,
                         });
                     } else {

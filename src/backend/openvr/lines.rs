@@ -1,9 +1,9 @@
+use std::collections::BTreeMap;
 use std::f32::consts::PI;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use glam::{Affine3A, Vec3, Vec3A, Vec4};
-use idmap::IdMap;
 use ovr_overlay::overlay::OverlayManager;
 use ovr_overlay::sys::ETrackingUniverseOrigin;
 use vulkano::command_buffer::CommandBufferUsage;
@@ -20,7 +20,7 @@ use super::overlay::OpenVrOverlayData;
 static LINE_AUTO_INCREMENT: AtomicUsize = AtomicUsize::new(1);
 
 pub(super) struct LinePool {
-    lines: IdMap<usize, OverlayData<OpenVrOverlayData>>,
+    lines: BTreeMap<usize, OverlayData<OpenVrOverlayData>>,
     view: Arc<ImageView>,
     colors: [Vec4; 5],
 }
@@ -46,7 +46,7 @@ impl LinePool {
         let view = ImageView::new_default(texture)?;
 
         Ok(LinePool {
-            lines: IdMap::new(),
+            lines: BTreeMap::new(),
             view,
             colors: [
                 Vec4::new(1., 1., 1., 1.),
@@ -124,7 +124,7 @@ impl LinePool {
     }
 
     fn draw_transform(&mut self, id: usize, transform: Affine3A, color: Vec4) {
-        if let Some(data) = self.lines.get_mut(id) {
+        if let Some(data) = self.lines.get_mut(&id) {
             data.state.want_visible = true;
             data.state.transform = transform;
             data.data.color = color;
@@ -134,7 +134,7 @@ impl LinePool {
     }
 
     pub fn hide(&mut self, id: usize) {
-        if let Some(data) = self.lines.get_mut(id) {
+        if let Some(data) = self.lines.get_mut(&id) {
             data.state.want_visible = false;
         } else {
             log::warn!("Line {} does not exist", id);

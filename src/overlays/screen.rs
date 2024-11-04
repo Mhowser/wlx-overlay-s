@@ -771,16 +771,10 @@ pub fn create_screens_wayland(
     wl: &mut WlxClientAlias,
     app: &mut AppState,
 ) -> anyhow::Result<ScreenCreateData> {
-    use crate::config::AStrMap;
-
     let mut screens = vec![];
 
     // Load existing Pipewire tokens from file
-    let mut pw_tokens: PwTokenMap = if let Ok(conf) = load_pw_token_config() {
-        conf
-    } else {
-        AStrMap::new()
-    };
+    let mut pw_tokens: PwTokenMap = load_pw_token_config().unwrap_or_default();
 
     let pw_tokens_copy = pw_tokens.clone();
     let has_wlr_dmabuf = wl.maybe_wlr_dmabuf_mgr.is_some();
@@ -857,15 +851,8 @@ pub fn create_screens_x11pw(_app: &mut AppState) -> anyhow::Result<ScreenCreateD
 
 #[cfg(all(feature = "x11", feature = "pipewire"))]
 pub fn create_screens_x11pw(app: &mut AppState) -> anyhow::Result<ScreenCreateData> {
-    use crate::config::{AStrMap, AStrMapExt};
-    use anyhow::bail;
-
     // Load existing Pipewire tokens from file
-    let mut pw_tokens: PwTokenMap = if let Ok(conf) = load_pw_token_config() {
-        conf
-    } else {
-        AStrMap::new()
-    };
+    let mut pw_tokens: PwTokenMap = load_pw_token_config().unwrap_or_default();
     let pw_tokens_copy = pw_tokens.clone();
     let token = pw_tokens.arc_get("x11").map(|s| s.as_str());
     let embed_mouse = !app.session.config.double_cursor_fix;
@@ -894,7 +881,7 @@ pub fn create_screens_x11pw(app: &mut AppState) -> anyhow::Result<ScreenCreateDa
     let monitors = match XshmCapture::get_monitors() {
         Ok(m) => m,
         Err(e) => {
-            bail!(e.to_string());
+            anyhow::bail!(e.to_string());
         }
     };
     log::info!("Got {} monitors", monitors.len());

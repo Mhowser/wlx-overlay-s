@@ -24,8 +24,6 @@ fontconfig-rs = "0.1.1"
 freetype-rs = "0.36.0" # latest version supported on ubuntu 22.04
 futures = "0.3.30"
 glam = { version = "0.28.0", features = ["approx", "mint", "serde"] }
-idmap = { version = "0.2.21", features = ["serde"] }
-idmap-derive = "0.1.2"
 input-linux = "0.7.0"
 json = { version = "0.12.4", optional = true }
 json5 = "0.4.1"

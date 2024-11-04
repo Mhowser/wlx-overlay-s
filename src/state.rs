@@ -1,10 +1,9 @@
 use anyhow::bail;
 use glam::Affine3A;
-use idmap::IdMap;
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Source};
 use serde::{Deserialize, Serialize};
 use smallvec::{smallvec, SmallVec};
-use std::{io::Cursor, sync::Arc};
+use std::{collections::BTreeMap, io::Cursor, sync::Arc};
 use vulkano::image::view::ImageView;
 
 #[cfg(feature = "wayvr")]
@@ -141,7 +140,7 @@ pub struct AppSession {
     #[cfg(feature = "wayvr")]
     pub wayvr_config: WayVRConfig,
 
-    pub toast_topics: IdMap<ToastTopic, DisplayMethod>,
+    pub toast_topics: BTreeMap<ToastTopic, DisplayMethod>,
 }
 
 impl AppSession {
@@ -150,7 +149,7 @@ impl AppSession {
         log::info!("Config root path: {}", config_root_path.to_string_lossy());
         let config = GeneralConfig::load_from_disk();
 
-        let mut toast_topics = IdMap::new();
+        let mut toast_topics = BTreeMap::new();
         toast_topics.insert(ToastTopic::System, DisplayMethod::Center);
         toast_topics.insert(ToastTopic::DesktopNotification, DisplayMethod::Center);
         toast_topics.insert(ToastTopic::XSNotification, DisplayMethod::Center);

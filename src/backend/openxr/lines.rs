@@ -1,7 +1,7 @@
 use glam::{Affine3A, Vec3, Vec3A};
-use idmap::IdMap;
 use openxr as xr;
 use std::{
+    collections::BTreeMap,
     f32::consts::PI,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -25,7 +25,7 @@ static LINE_AUTO_INCREMENT: AtomicUsize = AtomicUsize::new(1);
 pub(super) const LINE_WIDTH: f32 = 0.002;
 
 pub(super) struct LinePool {
-    lines: IdMap<usize, LineContainer>,
+    lines: BTreeMap<usize, LineContainer>,
     colors: Vec<Arc<ImageView>>,
 }
 
@@ -56,7 +56,7 @@ impl LinePool {
         command_buffer.build_and_execute_now()?;
 
         Ok(LinePool {
-            lines: IdMap::new(),
+            lines: BTreeMap::new(),
             colors: views?,
         })
     }
@@ -94,7 +94,7 @@ impl LinePool {
 
         debug_assert!(color < self.colors.len());
 
-        let Some(line) = self.lines.get_mut(id) else {
+        let Some(line) = self.lines.get_mut(&id) else {
             log::warn!("Line {} not found", id);
             return;
         };

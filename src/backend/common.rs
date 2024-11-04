@@ -1,11 +1,10 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use once_cell::sync::Lazy;
 #[cfg(feature = "openxr")]
 use openxr as xr;
 
 use glam::{Affine3A, Vec3, Vec3A};
-use idmap::IdMap;
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -52,7 +51,7 @@ pub struct OverlayContainer<T>
 where
     T: Default,
 {
-    overlays: IdMap<usize, OverlayData<T>>,
+    overlays: BTreeMap<usize, OverlayData<T>>,
     wl: Option<WlxClientAlias>,
 }
 
@@ -61,7 +60,7 @@ where
     T: Default,
 {
     pub fn new(app: &mut AppState) -> anyhow::Result<Self> {
-        let mut overlays = IdMap::new();
+        let mut overlays = BTreeMap::new();
         let mut wl = create_wl_client();
 
         let keymap;
@@ -175,7 +174,7 @@ where
                     };
 
                     let meta = &app.screens[idx];
-                    let removed = self.overlays.remove(meta.id.0).unwrap();
+                    let removed = self.overlays.remove(&meta.id.0).unwrap();
                     removed_overlays.push(removed);
                     log::info!("{}: Destroyed", meta.name);
                     app.screens.remove(idx);
@@ -187,7 +186,7 @@ where
                         continue;
                     };
                     let output = wl.outputs.get(id).unwrap();
-                    let Some(overlay) = self.overlays.get_mut(meta.id.0) else {
+                    let Some(overlay) = self.overlays.get_mut(&meta.id.0) else {
                         continue;
                     };
                     let logical_pos =
@@ -209,7 +208,7 @@ where
                         continue;
                     };
                     let output = wl.outputs.get(id).unwrap();
-                    let Some(overlay) = self.overlays.get_mut(meta.id.0) else {
+                    let Some(overlay) = self.overlays.get_mut(&meta.id.0) else {
                         continue;
                     };
 
@@ -270,24 +269,24 @@ where
 
     pub fn remove_by_selector(&mut self, selector: &OverlaySelector) -> Option<OverlayData<T>> {
         match selector {
-            OverlaySelector::Id(id) => self.overlays.remove(id.0),
+            OverlaySelector::Id(id) => self.overlays.remove(&id.0),
             OverlaySelector::Name(name) => {
                 let id = self
                     .overlays
                     .iter()
                     .find(|(_, o)| *o.state.name == **name)
                     .map(|(id, _)| *id);
-                id.and_then(|id| self.overlays.remove(id))
+                id.and_then(|id| self.overlays.remove(&id))
             }
         }
     }
 
     pub fn get_by_id(&mut self, id: OverlayID) -> Option<&OverlayData<T>> {
-        self.overlays.get(id.0)
+        self.overlays.get(&id.0)
     }
 
     pub fn mut_by_id(&mut self, id: OverlayID) -> Option<&mut OverlayData<T>> {
-        self.overlays.get_mut(id.0)
+        self.overlays.get_mut(&id.0)
     }
 
     pub fn get_by_name<'a>(&'a mut self, name: &str) -> Option<&'a OverlayData<T>> {

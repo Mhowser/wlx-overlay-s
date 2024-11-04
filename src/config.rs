@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -15,7 +16,6 @@ use glam::vec3a;
 use glam::Affine3A;
 use glam::Quat;
 use glam::Vec3A;
-use idmap::IdMap;
 use log::error;
 use serde::Deserialize;
 use serde::Serialize;
@@ -153,8 +153,8 @@ fn def_empty() -> Arc<str> {
     "".into()
 }
 
-fn def_toast_topics() -> IdMap<ToastTopic, DisplayMethod> {
-    IdMap::new()
+fn def_toast_topics() -> BTreeMap<ToastTopic, DisplayMethod> {
+    BTreeMap::new()
 }
 
 fn def_font() -> Arc<str> {
@@ -186,7 +186,7 @@ pub struct GeneralConfig {
     pub notifications_sound_enabled: bool,
 
     #[serde(default = "def_toast_topics")]
-    pub notification_topics: IdMap<ToastTopic, DisplayMethod>,
+    pub notification_topics: BTreeMap<ToastTopic, DisplayMethod>,
 
     #[serde(default = "def_true")]
     pub keyboard_sound_enabled: bool,

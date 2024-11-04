@@ -1,12 +1,9 @@
 use glam::Vec2;
-use idmap::{idmap, IdMap};
-use idmap_derive::IntegerId;
 use input_linux::{
     AbsoluteAxis, AbsoluteInfo, AbsoluteInfoSetup, EventKind, InputId, Key, RelativeAxis,
     UInputHandle,
 };
 use libc::{input_event, timeval};
-use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::mem::transmute;
 use std::{fs::File, sync::atomic::AtomicBool};
@@ -218,8 +215,8 @@ impl HidProvider for UInputProvider {
         for i in 0..8 {
             let m = 1 << i;
             if changed & m != 0 {
-                if let Some(vk) = MODS_TO_KEYS.get(m).into_iter().flatten().next() {
-                    self.send_key(*vk, modifiers & m != 0);
+                if let Some(vk) = mods_to_keys(m).into_iter().next() {
+                    self.send_key(vk, modifiers & m != 0);
                 }
             }
         }
@@ -317,7 +314,7 @@ pub const META: KeyModifier = 0x80;
 
 #[allow(non_camel_case_types)]
 #[repr(u16)]
-#[derive(Debug, Deserialize, PartialEq, Clone, Copy, IntegerId, EnumString, EnumIter)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Copy, EnumString, EnumIter)]
 pub enum VirtualKey {
     Escape = 9,
     N1, // number row
@@ -473,23 +470,24 @@ pub enum VirtualKey {
     XF86Search = 225,
 }
 
-pub static KEYS_TO_MODS: Lazy<IdMap<VirtualKey, KeyModifier>> = Lazy::new(|| {
-    idmap! {
-        VirtualKey::LShift => SHIFT,
-        VirtualKey::RShift => SHIFT,
-        VirtualKey::Caps => CAPS_LOCK,
-        VirtualKey::LCtrl => CTRL,
-        VirtualKey::RCtrl => CTRL,
-        VirtualKey::LAlt => ALT,
-        VirtualKey::NumLock => NUM_LOCK,
-        VirtualKey::LSuper => SUPER,
-        VirtualKey::RSuper => SUPER,
-        VirtualKey::Meta => META,
+pub fn keys_to_mods(key: VirtualKey) -> Option<KeyModifier> {
+    match key {
+        VirtualKey::LShift => Some(SHIFT),
+        VirtualKey::RShift => Some(SHIFT),
+        VirtualKey::Caps => Some(CAPS_LOCK),
+        VirtualKey::LCtrl => Some(CTRL),
+        VirtualKey::RCtrl => Some(CTRL),
+        VirtualKey::LAlt => Some(ALT),
+        VirtualKey::NumLock => Some(NUM_LOCK),
+        VirtualKey::LSuper => Some(SUPER),
+        VirtualKey::RSuper => Some(SUPER),
+        VirtualKey::Meta => Some(META),
+        _ => None,
     }
-});
+}
 
-pub static MODS_TO_KEYS: Lazy<IdMap<KeyModifier, Vec<VirtualKey>>> = Lazy::new(|| {
-    idmap! {
+pub fn mods_to_keys(modifier: KeyModifier) -> Vec<VirtualKey> {
+    match modifier {
         SHIFT => vec![VirtualKey::LShift, VirtualKey::RShift],
         CAPS_LOCK => vec![VirtualKey::Caps],
         CTRL => vec![VirtualKey::LCtrl, VirtualKey::RCtrl],
@@ -497,8 +495,9 @@ pub static MODS_TO_KEYS: Lazy<IdMap<KeyModifier, Vec<VirtualKey>>> = Lazy::new(|
         NUM_LOCK => vec![VirtualKey::NumLock],
         SUPER => vec![VirtualKey::LSuper, VirtualKey::RSuper],
         META => vec![VirtualKey::Meta],
+        _ => vec![],
     }
-});
+}
 
 pub enum KeyType {
     Symbol,
@@ -544,11 +543,8 @@ impl XkbKeymap {
     pub fn label_for_key(&self, key: VirtualKey, modifier: KeyModifier) -> String {
         let mut state = xkb::State::new(&self.keymap);
         if modifier > 0 {
-            if let Some(mod_key) = MODS_TO_KEYS.get(modifier) {
-                state.update_key(
-                    xkb::Keycode::from(mod_key[0] as u32),
-                    xkb::KeyDirection::Down,
-                );
+            if let Some(mod_key) = mods_to_keys(modifier).first() {
+                state.update_key(xkb::Keycode::from(*mod_key as u32), xkb::KeyDirection::Down);
             }
         }
         state.key_get_utf8(xkb::Keycode::from(key as u32))

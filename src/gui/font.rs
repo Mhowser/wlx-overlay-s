@@ -1,8 +1,7 @@
-use std::{rc::Rc, str::FromStr, sync::Arc};
+use std::{collections::BTreeMap, rc::Rc, str::FromStr, sync::Arc};
 
 use fontconfig::{FontConfig, OwnedPattern};
 use freetype::{bitmap::PixelMode, face::LoadFlag, Face, Library};
-use idmap::IdMap;
 use vulkano::{command_buffer::CommandBufferUsage, format::Format, image::Image};
 
 use crate::graphics::WlxGraphics;
@@ -11,18 +10,18 @@ pub struct FontCache {
     primary_font: Arc<str>,
     fc: FontConfig,
     ft: Library,
-    collections: IdMap<isize, FontCollection>,
+    collections: BTreeMap<isize, FontCollection>,
 }
 
 struct FontCollection {
     fonts: Vec<Font>,
-    cp_map: IdMap<usize, usize>,
+    cp_map: BTreeMap<u32, usize>,
     zero_glyph: Rc<Glyph>,
 }
 
 struct Font {
     face: Face,
-    glyphs: IdMap<usize, Rc<Glyph>>,
+    glyphs: BTreeMap<u32, Rc<Glyph>>,
 }
 
 pub struct Glyph {
@@ -43,7 +42,7 @@ impl FontCache {
             primary_font,
             fc,
             ft,
-            collections: IdMap::new(),
+            collections: BTreeMap::new(),
         })
     }
 
@@ -62,7 +61,7 @@ impl FontCache {
             let w: f32 = line
                 .chars()
                 .filter_map(|c| {
-                    self.get_glyph_for_cp(c as usize, size, graphics.clone())
+                    self.get_glyph_for_cp(c as u32, size, graphics.clone())
                         .map(|glyph| glyph.advance)
                         .ok()
                 })
@@ -84,33 +83,27 @@ impl FontCache {
         let mut glyphs = Vec::new();
         for line in text.lines() {
             for c in line.chars() {
-                glyphs.push(self.get_glyph_for_cp(c as usize, size, graphics.clone())?);
+                glyphs.push(self.get_glyph_for_cp(c as u32, size, graphics.clone())?);
             }
         }
         Ok(glyphs)
     }
 
-    fn get_font_for_cp(&mut self, cp: usize, size: isize) -> usize {
-        if !self.collections.contains_key(size) {
-            self.collections.insert(
-                size,
-                FontCollection {
-                    fonts: Vec::new(),
-                    cp_map: IdMap::new(),
-                    zero_glyph: Rc::new(Glyph {
-                        tex: None,
-                        top: 0.,
-                        left: 0.,
-                        width: 0.,
-                        height: 0.,
-                        advance: size as f32 / 3.,
-                    }),
-                },
-            );
-        }
-        let coll = self.collections.get_mut(size).unwrap(); // safe because of the insert above
+    fn get_font_for_cp(&mut self, cp: u32, size: isize) -> usize {
+        let coll = self.collections.entry(size).or_insert(FontCollection {
+            fonts: Vec::new(),
+            cp_map: BTreeMap::new(),
+            zero_glyph: Rc::new(Glyph {
+                tex: None,
+                top: 0.,
+                left: 0.,
+                width: 0.,
+                height: 0.,
+                advance: size as f32 / 3.,
+            }),
+        });
 
-        if let Some(font) = coll.cp_map.get(cp) {
+        if let Some(font) = coll.cp_map.get(&cp) {
             return *font;
         }
 
@@ -151,10 +144,10 @@ impl FontCache {
 
             let idx = coll.fonts.len();
             for cp in 0..0xFFFF {
-                if coll.cp_map.contains_key(cp) {
+                if coll.cp_map.contains_key(&cp) {
                     continue;
                 }
-                let g = face.get_char_index(cp);
+                let g = face.get_char_index(cp as _);
                 if g.is_some() {
                     coll.cp_map.insert(cp, idx);
                 }
@@ -168,7 +161,7 @@ impl FontCache {
                 height: 0.,
                 advance: size as f32 / 3.,
             });
-            let mut glyphs = IdMap::new();
+            let mut glyphs = BTreeMap::new();
             glyphs.insert(0, zero_glyph);
 
             let font = Font { face, glyphs };
@@ -182,34 +175,38 @@ impl FontCache {
 
     fn get_glyph_for_cp(
         &mut self,
-        cp: usize,
+        cp: u32,
         size: isize,
         graphics: Arc<WlxGraphics>,
     ) -> anyhow::Result<Rc<Glyph>> {
         let key = self.get_font_for_cp(cp, size);
 
-        let Some(font) = &mut self.collections[size].fonts.get_mut(key) else {
+        let Some(font) = &mut self
+            .collections
+            .get_mut(&size)
+            .and_then(|c| c.fonts.get_mut(key))
+        else {
             log::warn!("No font found for codepoint: {}", cp);
-            return Ok(self.collections[size].zero_glyph.clone());
+            return Ok(self.collections[&size].zero_glyph.clone());
         };
 
-        if let Some(glyph) = font.glyphs.get(cp) {
+        if let Some(glyph) = font.glyphs.get(&cp) {
             return Ok(glyph.clone());
         }
 
-        if font.face.load_char(cp, LoadFlag::DEFAULT).is_err() {
-            return Ok(self.collections[size].zero_glyph.clone());
+        if font.face.load_char(cp as _, LoadFlag::DEFAULT).is_err() {
+            return Ok(self.collections[&size].zero_glyph.clone());
         }
 
         let glyph = font.face.glyph();
         if glyph.render_glyph(freetype::RenderMode::Normal).is_err() {
-            return Ok(self.collections[size].zero_glyph.clone());
+            return Ok(self.collections[&size].zero_glyph.clone());
         }
 
         let bmp = glyph.bitmap();
         let buf = bmp.buffer().to_vec();
         if buf.is_empty() {
-            return Ok(self.collections[size].zero_glyph.clone());
+            return Ok(self.collections[&size].zero_glyph.clone());
         }
 
         let metrics = glyph.metrics();
@@ -218,7 +215,7 @@ impl FontCache {
             Ok(PixelMode::Gray) => Format::R8_UNORM,
             Ok(PixelMode::Gray2) => Format::R16_SFLOAT,
             Ok(PixelMode::Gray4) => Format::R32_SFLOAT,
-            _ => return Ok(self.collections[size].zero_glyph.clone()),
+            _ => return Ok(self.collections[&size].zero_glyph.clone()),
         };
 
         let mut cmd_buffer = graphics.create_command_buffer(CommandBufferUsage::OneTimeSubmit)?;
@@ -235,6 +232,6 @@ impl FontCache {
         };
 
         font.glyphs.insert(cp, Rc::new(g));
-        Ok(font.glyphs[cp].clone())
+        Ok(font.glyphs[&cp].clone())
     }
 }

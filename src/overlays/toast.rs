@@ -1,7 +1,6 @@
 use std::{f32::consts::PI, ops::Add, sync::Arc, time::Instant};
 
 use glam::{vec3a, Quat};
-use idmap_derive::IntegerId;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +27,7 @@ pub enum DisplayMethod {
     Watch,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, IntegerId, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum ToastTopic {
     System,
     DesktopNotification,
@@ -119,7 +118,7 @@ fn new_toast(toast: Toast, app: &mut AppState) -> Option<(OverlayState, Box<dyn 
     let current_method = app
         .session
         .toast_topics
-        .get(toast.topic)
+        .get(&toast.topic)
         .copied()
         .unwrap_or(DisplayMethod::Hide);
 
